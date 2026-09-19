@@ -1,0 +1,16 @@
+memo/
+.DS_Store
+*.code-workspace
+
+# Python
+backend/.venv/
+backend/build/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Terraform
+infra/**/.terraform/
+infra/**/*.tfstate
+infra/**/*.tfstate.backup
+infra-private/
