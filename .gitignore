@@ -1,5 +1,6 @@
 memo/
 .DS_Store
+*.code-workspace
 
 # Python
 backend/.venv/
