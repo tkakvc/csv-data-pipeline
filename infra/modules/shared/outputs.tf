@@ -39,3 +39,8 @@ output "db_security_group_id" {
   value       = aws_security_group.db.id
   description = "RDS（レイヤーD）に付与するSG"
 }
+
+output "db_secret_arn" {
+  value       = aws_secretsmanager_secret.db_credentials.arn
+  description = "Lambda（レイヤーE）・バックフィルFargateタスク（レイヤーF）がDB接続情報を取得するSecrets ManagerのARN"
+}
