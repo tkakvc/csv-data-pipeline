@@ -29,3 +29,13 @@ output "private_route_table_ids" {
   value       = [aws_route_table.private1.id, aws_route_table.private2.id]
   description = "S3向けGatewayエンドポイントの関連付け先（private1, private2の順）"
 }
+
+output "lambda_security_group_id" {
+  value       = aws_security_group.lambda.id
+  description = "Lambda（レイヤーE）・バックフィルFargateタスク（レイヤーF）に付与するSG"
+}
+
+output "db_security_group_id" {
+  value       = aws_security_group.db.id
+  description = "RDS（レイヤーD）に付与するSG"
+}
