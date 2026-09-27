@@ -22,6 +22,12 @@ variable "route53_zone_name" {
 
 variable "local_dev_origin" {
   type        = string
-  description = "ローカル開発時のオリジン。S3のCORS AllowedOriginsに含める"
+  description = "ローカル開発時のオリジン。S3・API GatewayのCORS AllowedOriginsに含める"
   default     = "http://localhost:5173"
+}
+
+variable "google_oauth_client_id" {
+  type        = string
+  description = "presign・summary LambdaがJWTのaudクレーム検証に使うGoogle OAuthクライアントID（機密情報ではない）"
+  default     = "1024331697396-4g9s6cgm30o46s0t200kbg3jj5scqd0q.apps.googleusercontent.com"
 }
