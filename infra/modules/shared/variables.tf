@@ -13,6 +13,11 @@ terraform {
       # envs/dev/main.tfのproviders = { aws.us_east_1 = aws.us_east_1 } の行で行っている。
       configuration_aliases = [aws.us_east_1]
     }
+    # 【理解する価値あり】randomプロバイダ：database.tfのrandom_passwordリソースを
+    # 使うために必要。AWSに接続するわけではないプラグインなので、awsのようなaliasは無い。
+    random = {
+      source = "hashicorp/random"
+    }
   }
 }
 

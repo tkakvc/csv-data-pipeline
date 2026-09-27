@@ -12,6 +12,12 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    # randomプロバイダはAWSに何も接続しない（APIキーやリージョンの設定が要らない）ため、
+    # required_providersへの登録だけで済み、下のprovider "aws"のような設定ブロックは不要。
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
   }
 }
 
