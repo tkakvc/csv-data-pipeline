@@ -5,12 +5,21 @@ terraform {
   required_version = ">= 1.16.0"
 
   # required_providers：「このコードはAWS用のプラグイン（provider）を使う」という宣言。
-  # ここのバージョン指定（"~> 5.0"＝5.x系ならOK）に基づいて、
-  # 実行時にHashiCorpから対応するプラグインが自動ダウンロードされる（terraform init時）。
+  # ここのバージョン指定に基づいて、実行時にHashiCorpから対応するプラグインが
+  # 自動ダウンロードされる（terraform init時）。
+  #
+  # 【設計思想：なぜ5.x→6.xに上げたか】
+  # 最初から6.xを使う計画だったわけではない。レイヤーEでaws_lambda_functionの
+  # runtime = "python3.14" を書いた時、5.x系最新（5.100.0）ではこの文字列がまだ
+  # バリデーションの許可リストに入っておらず、terraform validateがエラーになった
+  # ことで初めて発覚した制約。ただ、エラーに押されて無条件にバージョンを上げるのではなく、
+  # 「今すでにapply済みの各リソース型（aws_vpc・aws_db_instance等）が、6.xの
+  # 破壊的変更一覧に載っていないか」を先に確認してから上げている。載っていれば、
+  # 意図せず既存リソースが再作成される事故につながるため。
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.0"
+      version = "~> 6.0"
     }
     # randomプロバイダはAWSに何も接続しない（APIキーやリージョンの設定が要らない）ため、
     # required_providersへの登録だけで済み、下のprovider "aws"のような設定ブロックは不要。

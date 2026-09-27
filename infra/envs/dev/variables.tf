@@ -32,6 +32,14 @@ variable "route53_zone_name" {
 
 variable "local_dev_origin" {
   type        = string
-  description = "ローカル開発時のオリジン。S3のCORS AllowedOriginsに含める"
+  description = "ローカル開発時のオリジン。S3・API GatewayのCORS AllowedOriginsに含める"
   default     = "http://localhost:5173"
+}
+
+# クライアントID自体は機密情報ではない（ブラウザ側のコードにもそのまま埋め込まれる値）ため、
+# クライアントシークレットと違ってdefaultに書いても問題ない
+variable "google_oauth_client_id" {
+  type        = string
+  description = "presign・summary LambdaがJWTのaudクレーム検証に使うGoogle OAuthクライアントID"
+  default     = "1024331697396-4g9s6cgm30o46s0t200kbg3jj5scqd0q.apps.googleusercontent.com"
 }
