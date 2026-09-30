@@ -65,7 +65,7 @@
 | API Gateway + Lambda（読み取り用） | 集計結果を返す読み取り専用API |
 | API Gateway + Lambda（署名付きURL発行用） | CSVアップロード用の署名付きURLを発行するAPI |
 | CloudFront | フロントエンド配信 |
-| Google OIDC（Lambda Authorizerで自前検証） | OIDCによるログイン（個人のGoogleアカウントでログイン） |
+| Google OIDC（各Lambdaハンドラー内で自前検証） | OIDCによるログイン（個人のGoogleアカウントでログイン） |
 | Secrets Manager | RDSの認証情報を安全に保管・取得する |
 | IAM | Lambda実行ロール・Fargateタスクロール（バックフィル用） |
 
@@ -95,8 +95,8 @@ upload_audit_log（アップロード監査ログ）
 ### 4-1 認証方式
 
 - OIDC（OpenID Connect）による「Googleでログイン」
-- ログイン後にGoogle側から発行されるIDトークン（JWT）を、⓪・⑥それぞれのAPI Gatewayに設定したLambda Authorizerが検証する
-- Lambda Authorizerは、GoogleのJWKS（JSON Web Key Set）エンドポイントから公開鍵を取得し、JWTの署名・発行者（iss）・宛先（aud）を自前で検証する
+- ログイン後にGoogle側から発行されるIDトークン（JWT）を、⓪・⑥それぞれのLambdaハンドラー自身が検証する（API Gateway側にLambda Authorizerは設定していない）
+- 各Lambdaハンドラーは、GoogleのJWKS（JSON Web Key Set）エンドポイントから公開鍵を取得し、JWTの署名・発行者（iss）・宛先（aud）を自前で検証する
 - Cognitoは使わない（比較は7-4）
 
 ### 4-2 署名付きURLの保存先パスの決め方
@@ -214,7 +214,7 @@ Googleでログインする際、Cognito User Poolを挟んで認証を代行さ
 | 観点 | A案：Cognito・ネイティブ統合 | B案：Cognito・自前検証 | C案：Google直接・自前検証（採用） |
 |---|---|---|---|
 | JWT検証ロジックの実装経験 | 得られない（AWSが代行する） | 得られる | 得られる |
-| 構築するAWSリソース | Cognito User Pool・Identity Provider・User Pool Client・Cognito Authorizerが必要 | 同左 | 不要（検証用Lambda Authorizer1つのみ） |
+| 構築するAWSリソース | Cognito User Pool・Identity Provider・User Pool Client・Cognito Authorizerが必要 | 同左 | 不要（検証ロジックは各Lambdaハンドラー内に実装） |
 | 今回の要件との適合 | 過剰装備（複数IdP対応・MFA等、使わない機能が付いてくる） | 過剰装備（インフラ面は同上） | 要件にちょうど合う |
 
 結論：C案を採用した。目的の1つが「OIDCのトークン検証ロジックを自分の手で理解し実装すること」であり、今回のユースケース（個人のGoogleアカウント1つでログイン）にはCognitoの追加機能（複数IdP対応・ユーザー管理UI・MFA等）は不要と判断した。
