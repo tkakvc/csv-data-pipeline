@@ -2,6 +2,14 @@
 
 CSVをアップロードするだけで、解析・DB取り込み・集計までを自動化するシステム。実務で経験したCSV取込・データ移行パイプラインの構成を、AWSインフラ設計から自分の裁量で作り直したポートフォリオ。
 
+🔗 **デモ：[https://csv.okuyamat.click/](https://csv.okuyamat.click/)**（Googleアカウントでのログインが必要です。ログイン不要で画面を見たい場合は下のスクリーンショットをご覧ください。アップロード画面からサンプルCSVをダウンロードして試せます）
+
+| ログイン | アップロード | 集計結果 |
+|---|---|---|
+| ![ログイン画面](./frontend/public/screenshots/login.png) | ![アップロード画面](./frontend/public/screenshots/upload.png) | ![集計結果画面](./frontend/public/screenshots/summary.png) |
+
+---
+
 ## これは何のためのプロジェクトか
 
 これまで実務では、他部署から届く費用（コスト）データのCSVを、担当者が手作業でExcelに転記・集計していた。転記ミス・属人化・集計のやり直しといった課題を、「アップロードするだけで自動的に集計結果が最新化される」仕組みに置き換えるとどうなるかを、個人開発として一から設計・構築した。
@@ -68,14 +76,143 @@ flowchart TD
 
 ---
 
-## 設計上のポイント（抜粋）
+## データベース設計
 
-- **署名付きURLの保存先パスはクライアントに送らせない**：ログイン中ユーザーのJWTから`sub`を取り出し、サーバー側（Lambda）でS3キーを組み立てる。クライアントが指定したパスをそのまま信用すると、他人のファイルを上書き・閲覧できてしまうため（[docs/architecture.md](./docs/architecture.md) 4-2）
-- **S3のアップロードイベントは「最低1回配信」を前提に、べき等性を設計する**：`upload_audit_log`テーブルの`file_key`にUNIQUE制約を張り、`processing`状態での予約INSERTを「一番最初に成功した呼び出しだけが処理を進めてよい」関所にすることで、重複配信による二重集計を防いでいる（[docs/database.md](./docs/database.md) 2-3）
-- **Cognitoを使わず、GoogleのIDトークンをLambda AuthorizerでJWKS検証する**：個人のGoogleアカウント1つでログインできればよいという要件に対し、Cognitoの複数IdP対応・ユーザー管理UI等は過剰装備と判断。OIDCの検証ロジック自体を理解する目的も兼ねて自前実装にした（[docs/architecture.md](./docs/architecture.md) 7-4）
-- **JWT検証をLambda Authorizer（VPC外）に切り出す**：RDS接続用のsummary用LambdaはVPC内に置く必要があるが、VPC内からはGoogleのJWKSエンドポイント（インターネット）に到達できずタイムアウトする。検証だけを担当するVPC外のLambda Authorizerを手前に置くことで解消した
-- **集計はアップロード時に1回だけ行い、画面はRDSを読むだけにする**：Amazon Athenaで都度スキャンする案も検討したが、画面を開くたびに課金・レイテンシが発生する構成は要件（集計結果の一覧表示）に対して過剰と判断した（[docs/architecture.md](./docs/architecture.md) 7-1）
-- **セキュリティレビューを実装前に自分で実施**：署名付きURLのパス偽装・SQLインジェクション・認証情報の管理方法など8件の指摘を洗い出し、設計に反映してから実装に着手した（[docs/security.md](./docs/security.md)）
+| テーブル | 役割 |
+|---|---|
+| `raw_expenses` | CSVの各行をほぼそのまま保存する生データ |
+| `summary_expenses` | 月・部門・勘定科目単位で金額を合計した集計データ |
+| `upload_audit_log` | 誰が・いつ・どのファイルをアップロードし、成功/失敗したかの記録 |
+
+<details>
+<summary>各テーブルのカラム定義</summary>
+
+**`raw_expenses`**
+
+| 物理名 | 型 | 説明 |
+|---|---|---|
+| `id` | BIGSERIAL | PK |
+| `user_sub` | VARCHAR(255) | GoogleのIDトークンに含まれる`sub` |
+| `source_file_key` | VARCHAR(1024) | 元CSVのS3オブジェクトキー |
+| `usage_date` | DATE | 経費が発生した日 |
+| `department_code` / `department_name` | VARCHAR | 部門コード・部門名 |
+| `account_category` | VARCHAR(100) | 勘定科目 |
+| `amount` | INTEGER | 支出額（`CHECK (amount >= 0)`） |
+| `vendor` / `description` | VARCHAR / TEXT | 取引先・摘要（NULL可） |
+| `uploaded_at` | TIMESTAMPTZ | DB登録日時 |
+
+**`summary_expenses`**
+
+| 物理名 | 型 | 説明 |
+|---|---|---|
+| `id` | BIGSERIAL | PK |
+| `user_sub` / `usage_month` / `department_code` / `account_category` | - | 複合UNIQUE制約（この4つの組み合わせで1行に集約） |
+| `department_name` | VARCHAR(100) | 部門名 |
+| `total_amount` | INTEGER | 合計金額 |
+| `updated_at` | TIMESTAMPTZ | 最終更新日時 |
+
+**`upload_audit_log`**
+
+| 物理名 | 型 | 説明 |
+|---|---|---|
+| `id` | BIGSERIAL | PK |
+| `user_sub` | VARCHAR(255) | アップロードした人 |
+| `file_key` | VARCHAR(1024) | UNIQUE。同一ファイルの重複INSERTを防ぐべき等性の関所 |
+| `row_count` | INTEGER | 取込行数（`processing`中・失敗時はNULL） |
+| `status` | VARCHAR(20) | `processing` / `success` / `failed` |
+| `error_message` | TEXT | 失敗時のエラー内容 |
+| `processed_at` | TIMESTAMPTZ | 予約・確定時に更新される日時 |
+
+全DDL・UPSERT文・バックフィル時のSQLは [docs/database.md](./docs/database.md) を参照。
+
+</details>
+
+---
+
+## API設計
+
+| API | メソッド・パス | 認証 | 概要 |
+|---|---|---|---|
+| 署名付きURL発行API | `POST /upload-url` | 必須 | CSVアップロード用のS3署名付きURLを発行する |
+| 読み取り専用API | `GET /summary` | 必須 | 集計結果を取得する（`month`パラメータで絞り込み可） |
+
+<details>
+<summary>リクエスト・レスポンス例</summary>
+
+**`POST /upload-url`**
+
+リクエストボディ無し（保存先パスはクライアントから送らず、トークンの`sub`からLambda側で組み立てる）。
+
+```json
+// 200 OK
+{
+  "url": "https://cost-csv-bucket.s3.ap-northeast-1.amazonaws.com/uploads/...（署名付き）",
+  "key": "uploads/google-oauth2|12345/20260720T120000Z_costs.csv",
+  "expiresIn": 300
+}
+```
+
+**`GET /summary?month=2026-07`**
+
+```json
+// 200 OK
+{
+  "items": [
+    {
+      "usageMonth": "2026-07",
+      "departmentCode": "SALES",
+      "departmentName": "営業部",
+      "accountCategory": "交通費",
+      "totalAmount": 4700
+    }
+  ]
+}
+```
+
+**共通エラー形式**
+
+```json
+{ "error": { "code": "UNAUTHORIZED", "message": "..." } }
+```
+
+| コード | 意味 | HTTPステータス |
+|---|---|---|
+| `UNAUTHORIZED` | 認証トークンが無い、または無効 | 401 |
+| `VALIDATION_ERROR` | リクエストの内容が不正 | 400 |
+| `INTERNAL_ERROR` | サーバー内部エラー | 500 |
+
+詳細は [docs/api.md](./docs/api.md) を参照。
+
+</details>
+
+---
+
+## 設計で意識したこと
+
+- **署名付きURLの保存先パスはクライアントに送らせない**
+  - ログイン中ユーザーのJWTから`sub`を取り出し、サーバー側（Lambda）でS3キーを組み立てる
+  - クライアントが指定したパスをそのまま信用すると、他人のファイルを上書き・閲覧できてしまうため
+  - 詳細：[docs/architecture.md 4-2](./docs/architecture.md)
+- **S3のアップロードイベントは「最低1回配信」を前提に、べき等性を設計する**
+  - `upload_audit_log`テーブルの`file_key`にUNIQUE制約を張る
+  - `processing`状態での予約INSERTを「一番最初に成功した呼び出しだけが処理を進めてよい」関所にする
+  - これにより、重複配信による二重集計を防いでいる
+  - 詳細：[docs/database.md 2-3](./docs/database.md)
+- **Cognitoを使わず、GoogleのIDトークンをLambda AuthorizerでJWKS検証する**
+  - 個人のGoogleアカウント1つでログインできればよいという要件に対し、Cognitoの複数IdP対応・ユーザー管理UI等は過剰装備と判断
+  - OIDCの検証ロジック自体を理解する目的も兼ねて自前実装にした
+  - 詳細：[docs/architecture.md 7-4](./docs/architecture.md)
+- **JWT検証をLambda Authorizer（VPC外）に切り出す**
+  - RDS接続用のsummary用LambdaはVPC内に置く必要があるが、VPC内からはGoogleのJWKSエンドポイント（インターネット）に到達できずタイムアウトする
+  - 検証だけを担当するVPC外のLambda Authorizerを手前に置くことで解消した
+- **集計はアップロード時に1回だけ行い、画面はRDSを読むだけにする**
+  - Amazon Athenaで都度スキャンする案も検討した
+  - 画面を開くたびに課金・レイテンシが発生する構成は要件（集計結果の一覧表示）に対して過剰と判断した
+  - 詳細：[docs/architecture.md 7-1](./docs/architecture.md)
+- **セキュリティレビューを実装前に自分で実施**
+  - 署名付きURLのパス偽装・SQLインジェクション・認証情報の管理方法など8件の指摘を洗い出した
+  - 設計に反映してから実装に着手した
+  - 詳細：[docs/security.md](./docs/security.md)
 
 ---
 
@@ -102,3 +239,4 @@ csv-data-pipeline/
 | [docs/csv-format.md](./docs/csv-format.md) | 取込CSVフォーマット仕様 |
 | [docs/network.md](./docs/network.md) | ネットワーク設計（VPC・サブネット・SG） |
 | [docs/security.md](./docs/security.md) | セキュリティレビュー記録 |
+| [docs/deploy.md](./docs/deploy.md) | デプロイ手順（フロントエンド・Lambda・インフラ） |

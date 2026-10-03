@@ -53,6 +53,14 @@ export default function UploadPage() {
   return (
     <div className="mx-auto max-w-xl p-6">
       <h1 className="mb-4 text-2xl font-bold">CSVアップロード</h1>
+
+      {/* 採用担当者等に公開リンクを共有する運用のため、試しやすいようサンプルCSVを用意している */}
+      <p className="mb-4 text-sm text-muted-foreground">
+        <a href="/sample_costs.csv" download className="underline">
+          サンプルCSVをダウンロード
+        </a>
+      </p>
+
       <FileDropZone onFileSelect={handleFileSelect} />
 
       {state.status === "selected" && (
