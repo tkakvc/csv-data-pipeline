@@ -4,26 +4,19 @@ GET /summary の実体。
 """
 
 import json
-import os
 import re
 
 from core import db, repository
-from core.auth import extract_bearer_token, verify_google_id_token
-
-GOOGLE_OAUTH_CLIENT_ID = os.environ["GOOGLE_OAUTH_CLIENT_ID"]
 
 _MONTH_PATTERN = re.compile(r"\d{4}-\d{2}")
 
 
 def handler(event, context):
     """API Gatewayから呼ばれるエントリーポイント。"""
-    try:
-        token = extract_bearer_token(event.get("headers", {}))
-        claims = verify_google_id_token(token, GOOGLE_OAUTH_CLIENT_ID)
-    except Exception:
-        return _error_response(401, "UNAUTHORIZED", "有効な認証トークンがありません")
-
-    sub = claims["sub"]
+    # JWTの検証はこのLambdaの前段（Lambda Authorizer）で済んでいる。検証済みのsubが
+    # event["requestContext"]["authorizer"]["lambda"]に入って渡される。これにより、
+    # RDS接続のためVPC内に置いているこのLambda自身はインターネットに出る必要が無い。
+    sub = event["requestContext"]["authorizer"]["lambda"]["sub"]
 
     query_params = event.get("queryStringParameters") or {}
     month = query_params.get("month")

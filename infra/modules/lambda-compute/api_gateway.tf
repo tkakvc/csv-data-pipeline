@@ -1,6 +1,5 @@
 # HTTP API本体。ルート・統合は各Lambdaのファイル（presign_lambda.tf・summary_lambda.tf）側に置く。
-# Lambda Authorizerは使わない：presign・summaryのハンドラ自身がGoogleのJWKSでJWTを検証しており、
-# API Gatewayレベルの認可設定は無い（docs/api.md「補足」参照）。
+# JWT検証はLambda Authorizer（authorizer_lambda.tf）が共通で担当する。
 resource "aws_apigatewayv2_api" "main" {
   name          = "${var.project_name}-api"
   protocol_type = "HTTP"

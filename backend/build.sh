@@ -8,7 +8,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-for name in presign ingest summary; do
+for name in presign ingest summary authorizer; do
   rm -rf "build/$name" "build/$name.zip"
   mkdir -p "build/$name"
 
