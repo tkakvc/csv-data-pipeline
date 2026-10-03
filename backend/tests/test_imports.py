@@ -17,6 +17,7 @@ MODULES = [
     "lambda_presign.handler",
     "lambda_ingest.handler",
     "lambda_summary.handler",
+    "lambda_authorizer.handler",
     "fargate_backfill.main",
 ]
 
