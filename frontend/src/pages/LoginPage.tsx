@@ -29,10 +29,17 @@ export default function LoginPage() {
     }
   }, [idToken, navigate])
 
-  // 【優先度低】GISがbuttonRefの中に直接ボタンを描画するための空のdivを置いているだけ
+  // 一般的なログイン画面の形（中央にカード、上にタイトルと説明、下にログインボタン）にしている。
+  // buttonRefの中身自体はGISが直接書き込むので、囲んでいるdiv・見出し・説明文はただの装飾。
   return (
-    <div className="flex min-h-screen items-center justify-center">
-      <div ref={buttonRef} />
+    <div className="flex min-h-screen items-center justify-center bg-muted p-4">
+      <div className="w-full max-w-sm rounded-lg border bg-card p-8 text-center shadow-sm">
+        <h1 className="text-xl font-bold">コストデータ取込・分析</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Googleアカウントでログインしてください
+        </p>
+        <div className="mt-6 flex justify-center" ref={buttonRef} />
+      </div>
     </div>
   )
 }

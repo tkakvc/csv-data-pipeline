@@ -3,10 +3,14 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 type AuthContextValue = {
   idToken: string | null
   isLoading: boolean
+  logout: () => void
 }
 
+// sessionStorageに保存するキー。タブを閉じるまでの間だけ、リロードしてもログイン状態を保つ。
+const STORAGE_KEY = "idToken"
+
 // 【抑えておく】createContextは「値を、間のコンポーネントを飛び越して下の階層に配る」仕組み
-const AuthContext = createContext<AuthContextValue>({ idToken: null, isLoading: true })
+const AuthContext = createContext<AuthContextValue>({ idToken: null, isLoading: true, logout: () => {} })
 
 // 他のコンポーネントから「今ログイン中か・IDトークンは何か」を読むためのフック
 // eslint-disable-next-line react-refresh/only-export-components -- Provider本体とセットで使うため同じファイルに置く（React Contextの一般的な書き方）
@@ -15,8 +19,24 @@ export function useAuth() {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [idToken, setIdToken] = useState<string | null>(null)
+  // 初期値をsessionStorageから読むことで、リロード直後でも「前回ログイン済みだった」状態を復元する。
+  // トークンの期限切れ自体はここではチェックしない（期限切れならAPI呼び出し時に401が返り、
+  // 各画面のエラー表示で気づける。ここで検証まで行うと処理が重複するため）。
+  const [idToken, setIdToken] = useState<string | null>(() => sessionStorage.getItem(STORAGE_KEY))
   const [isLoading, setIsLoading] = useState(true)
+
+  function handleIdToken(token: string) {
+    setIdToken(token)
+    sessionStorage.setItem(STORAGE_KEY, token)
+  }
+
+  // ログアウト：保存したトークンを消して未ログイン状態に戻す。
+  // GIS側のGoogleセッション自体は切らない（ブラウザの別タブ等でGoogle自体からログアウトするのとは別物。
+  // このアプリの中だけでの「ログイン状態」を終わらせる処理）。
+  function logout() {
+    setIdToken(null)
+    sessionStorage.removeItem(STORAGE_KEY)
+  }
 
   useEffect(() => {
     // 【面接で説明できるようにする】GISが提供するのは「ログイン画面（ポップアップ等）を出して、
@@ -27,7 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         client_id: import.meta.env.VITE_GOOGLE_OAUTH_CLIENT_ID,
         // ログイン成功時、GISがこの関数を呼び出し、response.credentialにIDトークン（JWT）を渡してくる
         callback: (response: { credential: string }) => {
-          setIdToken(response.credential)
+          handleIdToken(response.credential)
         },
       })
       setIsLoading(false)
@@ -55,5 +75,5 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  return <AuthContext.Provider value={{ idToken, isLoading }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ idToken, isLoading, logout }}>{children}</AuthContext.Provider>
 }

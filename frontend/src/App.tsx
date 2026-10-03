@@ -4,10 +4,14 @@ import LoginPage from "./pages/LoginPage"
 import UploadPage from "./pages/UploadPage"
 import SummaryPage from "./pages/SummaryPage"
 import { useAuth } from "./auth/AuthProvider"
+import { AppHeader } from "./components/AppHeader"
 
 // 【面接で説明できるようにする】未ログイン状態でアクセスされたら/loginに飛ばす、画面を包むための部品。
 // なぜこのパターンが必要か：react-router-domには「認証必須ルート」を宣言するだけの標準機能が
 // 無いため、自分で「中身を表示する前にチェックする」コンポーネントを作って各ルートを包む必要がある
+//
+// ログイン後の画面共通のヘッダー（/upload・/summaryを行き来するナビゲーション）も、
+// 認証済みの場合だけ表示したいので、この中で一緒に描画する。
 function RequireAuth({ children }: { children: ReactNode }) {
   const { idToken, isLoading } = useAuth()
   // 【面接で説明できるようにする】isLoadingを先にチェックする理由：GISの初期化が終わる前は
@@ -15,7 +19,12 @@ function RequireAuth({ children }: { children: ReactNode }) {
   // たびに一瞬だけ/loginに飛ばされてすぐ戻る、という誤動作が起きる
   if (isLoading) return null
   if (!idToken) return <Navigate to="/login" replace />
-  return <>{children}</>
+  return (
+    <>
+      <AppHeader />
+      {children}
+    </>
+  )
 }
 
 export default function App() {
