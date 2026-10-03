@@ -3,10 +3,14 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 type AuthContextValue = {
   idToken: string | null
   isLoading: boolean
+  logout: () => void
 }
 
+// sessionStorageに保存するキー。タブを閉じるまでの間だけ、リロードしてもログイン状態を保つ。
+const STORAGE_KEY = "idToken"
+
 // createContextは、値を間のコンポーネントを飛び越して下の階層に配る仕組み
-const AuthContext = createContext<AuthContextValue>({ idToken: null, isLoading: true })
+const AuthContext = createContext<AuthContextValue>({ idToken: null, isLoading: true, logout: () => {} })
 
 // 他のコンポーネントから「今ログイン中か・IDトークンは何か」を読むためのフック
 // eslint-disable-next-line react-refresh/only-export-components -- Provider本体とセットで使うため同じファイルに置く（React Contextの一般的な書き方）
@@ -15,8 +19,20 @@ export function useAuth() {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [idToken, setIdToken] = useState<string | null>(null)
+  // 初期値をsessionStorageから読むことで、リロード直後でも前回ログイン済みだった状態を復元する。
+  // トークンの期限切れはここでは検証しない（期限切れならAPI呼び出し時に401が返る）。
+  const [idToken, setIdToken] = useState<string | null>(() => sessionStorage.getItem(STORAGE_KEY))
   const [isLoading, setIsLoading] = useState(true)
+
+  function handleIdToken(token: string) {
+    setIdToken(token)
+    sessionStorage.setItem(STORAGE_KEY, token)
+  }
+
+  function logout() {
+    setIdToken(null)
+    sessionStorage.removeItem(STORAGE_KEY)
+  }
 
   useEffect(() => {
     // GISが提供するのは「ログイン画面（ポップアップ等）を出して、成功したらJWT形式のIDトークンを
@@ -27,7 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         client_id: import.meta.env.VITE_GOOGLE_OAUTH_CLIENT_ID,
         // ログイン成功時、GISがこの関数を呼び出し、response.credentialにIDトークン（JWT）を渡してくる
         callback: (response: { credential: string }) => {
-          setIdToken(response.credential)
+          handleIdToken(response.credential)
         },
       })
       setIsLoading(false)
@@ -46,5 +62,5 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  return <AuthContext.Provider value={{ idToken, isLoading }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ idToken, isLoading, logout }}>{children}</AuthContext.Provider>
 }
