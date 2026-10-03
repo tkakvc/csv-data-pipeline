@@ -60,7 +60,7 @@ flowchart TD
 | フロントエンド | React 19 + TypeScript + Vite、TanStack Query、axios、Tailwind CSS v4、shadcn/ui、react-router-dom |
 | バックエンド | Python（Lambda 3本 + Fargateタスク）、psycopg2 |
 | データベース | Amazon RDS for PostgreSQL |
-| 認証 | OIDC（Googleでログイン）、各Lambdaハンドラー内でのJWT自前検証（JWKS） |
+| 認証 | OIDC（Googleでログイン）、Lambda AuthorizerによるJWT自前検証（JWKS） |
 | インフラ | API Gateway（HTTP API）、S3、CloudFront、ECS Fargate + ECR、Secrets Manager、IAM |
 | 配信 | S3 + CloudFront（静的ホスティング） |
 
@@ -72,7 +72,8 @@ flowchart TD
 
 - **署名付きURLの保存先パスはクライアントに送らせない**：ログイン中ユーザーのJWTから`sub`を取り出し、サーバー側（Lambda）でS3キーを組み立てる。クライアントが指定したパスをそのまま信用すると、他人のファイルを上書き・閲覧できてしまうため（[docs/architecture.md](./docs/architecture.md) 4-2）
 - **S3のアップロードイベントは「最低1回配信」を前提に、べき等性を設計する**：`upload_audit_log`テーブルの`file_key`にUNIQUE制約を張り、`processing`状態での予約INSERTを「一番最初に成功した呼び出しだけが処理を進めてよい」関所にすることで、重複配信による二重集計を防いでいる（[docs/database.md](./docs/database.md) 2-3）
-- **Cognitoを使わず、GoogleのIDトークンを各Lambdaハンドラー内でJWKS検証する**：個人のGoogleアカウント1つでログインできればよいという要件に対し、Cognitoの複数IdP対応・ユーザー管理UI等は過剰装備と判断。OIDCの検証ロジック自体を理解する目的も兼ねて自前実装にした（[docs/architecture.md](./docs/architecture.md) 7-4）
+- **Cognitoを使わず、GoogleのIDトークンをLambda AuthorizerでJWKS検証する**：個人のGoogleアカウント1つでログインできればよいという要件に対し、Cognitoの複数IdP対応・ユーザー管理UI等は過剰装備と判断。OIDCの検証ロジック自体を理解する目的も兼ねて自前実装にした（[docs/architecture.md](./docs/architecture.md) 7-4）
+- **JWT検証をLambda Authorizer（VPC外）に切り出す**：RDS接続用のsummary用LambdaはVPC内に置く必要があるが、VPC内からはGoogleのJWKSエンドポイント（インターネット）に到達できずタイムアウトする。検証だけを担当するVPC外のLambda Authorizerを手前に置くことで解消した
 - **集計はアップロード時に1回だけ行い、画面はRDSを読むだけにする**：Amazon Athenaで都度スキャンする案も検討したが、画面を開くたびに課金・レイテンシが発生する構成は要件（集計結果の一覧表示）に対して過剰と判断した（[docs/architecture.md](./docs/architecture.md) 7-1）
 - **セキュリティレビューを実装前に自分で実施**：署名付きURLのパス偽装・SQLインジェクション・認証情報の管理方法など8件の指摘を洗い出し、設計に反映してから実装に着手した（[docs/security.md](./docs/security.md)）
 

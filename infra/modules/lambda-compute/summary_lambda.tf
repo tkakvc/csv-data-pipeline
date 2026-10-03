@@ -74,8 +74,7 @@ resource "aws_lambda_function" "summary" {
 
   environment {
     variables = {
-      DB_SECRET_ARN          = var.db_secret_arn
-      GOOGLE_OAUTH_CLIENT_ID = var.google_oauth_client_id
+      DB_SECRET_ARN = var.db_secret_arn
     }
   }
 
@@ -103,4 +102,7 @@ resource "aws_apigatewayv2_route" "summary" {
   api_id    = aws_apigatewayv2_api.main.id
   route_key = "GET /summary"
   target    = "integrations/${aws_apigatewayv2_integration.summary.id}"
+
+  authorization_type = "CUSTOM"
+  authorizer_id       = aws_apigatewayv2_authorizer.jwt.id
 }

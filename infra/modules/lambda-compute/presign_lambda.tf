@@ -74,8 +74,7 @@ resource "aws_lambda_function" "presign" {
 
   environment {
     variables = {
-      UPLOAD_BUCKET_NAME     = var.csv_bucket_name
-      GOOGLE_OAUTH_CLIENT_ID = var.google_oauth_client_id
+      UPLOAD_BUCKET_NAME = var.csv_bucket_name
     }
   }
 
@@ -112,4 +111,8 @@ resource "aws_apigatewayv2_route" "presign" {
   api_id    = aws_apigatewayv2_api.main.id
   route_key = "POST /upload-url"
   target    = "integrations/${aws_apigatewayv2_integration.presign.id}"
+
+  # このルートに来たリクエストは、本体を呼ぶ前にまずauthorizer_lambda.tfのAuthorizerを通す
+  authorization_type = "CUSTOM"
+  authorizer_id       = aws_apigatewayv2_authorizer.jwt.id
 }

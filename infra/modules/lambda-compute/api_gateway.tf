@@ -1,10 +1,8 @@
-# 【設計思想：Lambda Authorizerをここに書かない理由】
-# docs/設計.md（旧版の検討時点）では「API GatewayのLambda Authorizerで守る」という案も
-# 書かれていたが、実際に動いているコード（lambda_presign/handler.py・lambda_summary/handler.py）は
-# ハンドラ自身の中でGoogleのJWKSを使ってJWTを検証している。API Gatewayレベルの認可設定
-# （Authorizer）は実際には存在しない。設計ドキュメントの「理想形」ではなく「今のコードが
-# 実際にやっていること」に合わせてTerraformを書くべきなので、ここではAuthorizerのリソースは
-# 意図的に作らない（docs/api.mdの補足にもこの経緯が書かれている）。
+# 【設計の変遷：当初はLambda Authorizerを使わない方針だった】
+# 当初はpresign・summary各Lambdaが自分でJWTを検証する方式にしていたが、summary用Lambdaを
+# RDS接続のためVPC内に置いた結果、GoogleのJWKS取得（インターネットアクセスが必要）が
+# タイムアウトする問題が発覚した。この解消のため、JWT検証だけをVPC外の専用Lambda
+# （Authorizer）に切り出す方式に変更した（authorizer_lambda.tf参照）。
 
 # HTTP API本体。ルート・統合は各Lambdaのファイル（presign_lambda.tf・summary_lambda.tf）側に置く
 # （「1つのAPI」の中に複数の「ルート」があり、各ルートが1つの「統合」に紐づく、という階層）。
