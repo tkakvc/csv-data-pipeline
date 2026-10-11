@@ -11,6 +11,13 @@ terraform {
       version = "~> 3.6"
     }
   }
+
+  backend "s3" {
+    bucket         = "cost-csv-bucket-tfstate-460677238703-ap-northeast-1-an"
+    key            = "terraform.tfstate"
+    region         = "ap-northeast-1"
+    profile        = "default"
+  }
 }
 
 provider "aws" {
