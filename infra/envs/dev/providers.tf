@@ -28,6 +28,24 @@ terraform {
       version = "~> 3.6"
     }
   }
+
+  # backend "s3"：tfstate（Terraformが管理するリソースの記録ファイル）の保存先を、
+  # デフォルトのローカルファイルからS3に変える設定。
+  # ローカルのままだと「PCの中の1ファイルが消えたら、83個のリソースの管理情報を全部失う」
+  # リスクがあるため、S3に置いて事故に強くした。
+  #
+  # 【詰まった点】
+  # - key = "./terraform.tfstate" のように先頭に "./" を付けると、S3のオブジェクト名に
+  #   そのまま "./" が入ってしまい、コンソールの署名付きURL発行でエラーになった
+  #   （キーはファイルパスではなく単なる文字列なので "./" は不要）
+  # - backendブロックの中は var.aws_region のような変数を使えない（設定を読み込む段階が
+  #   他のコードより早いため）。リテラル文字列で書く必要がある
+  backend "s3" {
+    bucket         = "cost-csv-bucket-tfstate-460677238703-ap-northeast-1-an"
+    key            = "terraform.tfstate"
+    region         = "ap-northeast-1"
+    profile        = "default"
+  }
 }
 
 # provider "aws" ブロック：「AWSのどのリージョンに、どんな設定で接続するか」を定義する。
